@@ -501,15 +501,19 @@ export async function loadOnnx(onnxPath, options, onProgress = null) {
         if (onProgress) onProgress(onnxPath.byteLength, onnxPath.byteLength);
         return await ort.InferenceSession.create(onnxPath, options);
     }
-    // Lazy Blob (e.g. a slice of an imported ZIP) — read into ArrayBuffer
+    // Lazy Blob (e.g. a slice of an imported ZIP) — read into a Uint8Array
     // only at the moment the session needs it, then immediately drop the
     // reference so memory peak stays at "one model at a time" on mobile.
+    // Note: we pass a Uint8Array (not the raw ArrayBuffer) because that
+    // matches the input shape used by the network-download path, which is
+    // the path proven to work on every browser we've tested.
     if (typeof Blob !== 'undefined' && onnxPath instanceof Blob) {
         const total = onnxPath.size;
         if (onProgress) onProgress(0, total);
         const buf = await onnxPath.arrayBuffer();
+        const bytes = new Uint8Array(buf);
         if (onProgress) onProgress(total, total);
-        const session = await ort.InferenceSession.create(buf, options);
+        const session = await ort.InferenceSession.create(bytes, options);
         return session;
     }
     if (onnxPath && typeof onnxPath === 'object' && Array.isArray(onnxPath.chunks)) {
