@@ -501,6 +501,17 @@ export async function loadOnnx(onnxPath, options, onProgress = null) {
         if (onProgress) onProgress(onnxPath.byteLength, onnxPath.byteLength);
         return await ort.InferenceSession.create(onnxPath, options);
     }
+    // Lazy Blob (e.g. a slice of an imported ZIP) — read into ArrayBuffer
+    // only at the moment the session needs it, then immediately drop the
+    // reference so memory peak stays at "one model at a time" on mobile.
+    if (typeof Blob !== 'undefined' && onnxPath instanceof Blob) {
+        const total = onnxPath.size;
+        if (onProgress) onProgress(0, total);
+        const buf = await onnxPath.arrayBuffer();
+        if (onProgress) onProgress(total, total);
+        const session = await ort.InferenceSession.create(buf, options);
+        return session;
+    }
     if (onnxPath && typeof onnxPath === 'object' && Array.isArray(onnxPath.chunks)) {
         const bytes = await loadAndConcat(onnxPath.chunks, onProgress);
         return await ort.InferenceSession.create(bytes, options);
@@ -513,9 +524,13 @@ export async function loadOnnx(onnxPath, options, onProgress = null) {
     return session;
 }
 
-// Helper that loads a JSON config either from an in-memory value, a Uint8Array
-// of UTF-8 bytes, or a URL.
+// Helper that loads a JSON config from one of: an already-parsed object, a
+// Uint8Array of UTF-8 bytes, an ArrayBuffer, a Blob (lazy ZIP slice), or a
+// URL string.
 async function loadJsonSource(source) {
+    if (typeof Blob !== 'undefined' && source instanceof Blob) {
+        return JSON.parse(await source.text());
+    }
     if (source && typeof source === 'object'
         && !(source instanceof Uint8Array)
         && !(source instanceof ArrayBuffer)) {
