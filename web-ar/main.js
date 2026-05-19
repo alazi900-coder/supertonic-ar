@@ -5,11 +5,46 @@ import {
 } from './helper.js';
 
 // Configuration
+// When this app is deployed (no local /assets folder), fetch model weights and
+// voice styles from raw.githubusercontent.com — GitHub serves raw files with
+// `Access-Control-Allow-Origin: *` so cross-origin loading works.
+const MODEL_HOSTED = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const RAW_BASE = 'https://raw.githubusercontent.com/alazi900-coder/supertonic-ar/models';
+const ONNX_BASE = MODEL_HOSTED ? `${RAW_BASE}/onnx` : 'assets/onnx';
+const VOICE_STYLES_BASE = MODEL_HOSTED ? `${RAW_BASE}/voice_styles` : 'assets/voice_styles';
+
+// vector_estimator.onnx is ~245 MB so it is sharded into chunks of <100 MB to
+// fit within GitHub's per-file size limit. When MODEL_HOSTED, we fetch all
+// shards and concatenate them in the browser before passing to ONNX Runtime.
+const VECTOR_ESTIMATOR_CHUNKS = [
+    `${RAW_BASE}/onnx/vector_estimator.part.0`,
+    `${RAW_BASE}/onnx/vector_estimator.part.1`,
+    `${RAW_BASE}/onnx/vector_estimator.part.2`,
+    `${RAW_BASE}/onnx/vector_estimator.part.3`,
+];
+
+function modelOverrides() {
+    if (!MODEL_HOSTED) return {};
+    return {
+        tts: `${ONNX_BASE}/tts.json`,
+        unicode_indexer: `${ONNX_BASE}/unicode_indexer.json`,
+        duration_predictor: `${ONNX_BASE}/duration_predictor.onnx`,
+        text_encoder: `${ONNX_BASE}/text_encoder.onnx`,
+        vocoder: `${ONNX_BASE}/vocoder.onnx`,
+        vector_estimator: { chunks: VECTOR_ESTIMATOR_CHUNKS },
+    };
+}
+
+function voiceStyleUrl(localPath) {
+    if (!MODEL_HOSTED) return localPath;
+    return `${VOICE_STYLES_BASE}/${getFilenameFromPath(localPath)}`;
+}
+
 const DEFAULT_VOICE_STYLE_PATH = 'assets/voice_styles/M1.json';
 
 // Helper function to extract filename from path
 function getFilenameFromPath(path) {
-    return path.split('/').pop();
+    return String(path).split('/').pop();
 }
 
 // Format a number using Arabic-Indic digits for nicer presentation.
@@ -66,7 +101,8 @@ function showBackendBadge() {
 // Load voice style from JSON
 async function loadStyleFromJSON(stylePath) {
     try {
-        const style = await loadVoiceStyle([stylePath], true);
+        const url = voiceStyleUrl(stylePath);
+        const style = await loadVoiceStyle([url], true);
         return style;
     } catch (error) {
         console.error('Error loading voice style:', error);
@@ -79,7 +115,8 @@ async function initializeModels() {
     try {
         showStatus('ℹ️ <strong>جارٍ تحميل الإعدادات…</strong>');
 
-        const basePath = 'assets/onnx';
+        const basePath = ONNX_BASE;
+        const overrides = modelOverrides();
 
         // Try WebGPU first, fallback to WASM
         let executionProvider = 'wasm';
@@ -89,7 +126,7 @@ async function initializeModels() {
                 graphOptimizationLevel: 'all'
             }, (modelName, current, total) => {
                 showStatus(`ℹ️ <strong>تحميل نماذج ONNX (${toArabicDigits(current)}/${toArabicDigits(total)}):</strong> ${modelName}…`);
-            });
+            }, overrides);
 
             textToSpeech = result.textToSpeech;
             cfgs = result.cfgs;
@@ -105,7 +142,7 @@ async function initializeModels() {
                 graphOptimizationLevel: 'all'
             }, (modelName, current, total) => {
                 showStatus(`ℹ️ <strong>تحميل نماذج ONNX (${toArabicDigits(current)}/${toArabicDigits(total)}):</strong> ${modelName}…`);
-            });
+            }, overrides);
 
             textToSpeech = result.textToSpeech;
             cfgs = result.cfgs;
