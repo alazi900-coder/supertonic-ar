@@ -428,7 +428,29 @@ export async function loadTextProcessor(onnxDir) {
 /**
  * Load ONNX model
  */
+async function loadAndConcat(urls) {
+    const buffers = [];
+    for (const url of urls) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`Failed to fetch ${url}: ${r.status}`);
+        buffers.push(await r.arrayBuffer());
+    }
+    let total = 0;
+    for (const b of buffers) total += b.byteLength;
+    const combined = new Uint8Array(total);
+    let offset = 0;
+    for (const b of buffers) {
+        combined.set(new Uint8Array(b), offset);
+        offset += b.byteLength;
+    }
+    return combined;
+}
+
 export async function loadOnnx(onnxPath, options) {
+    if (onnxPath && typeof onnxPath === 'object' && Array.isArray(onnxPath.chunks)) {
+        const bytes = await loadAndConcat(onnxPath.chunks);
+        return await ort.InferenceSession.create(bytes, options);
+    }
     const session = await ort.InferenceSession.create(onnxPath, options);
     return session;
 }
@@ -436,15 +458,16 @@ export async function loadOnnx(onnxPath, options) {
 /**
  * Load all TTS components
  */
-export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCallback = null) {
+export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCallback = null, overrides = {}) {
     console.log('Using WebAssembly/WebGPU for inference');
     
-    const cfgs = await loadCfgs(onnxDir);
+    const cfgsUrl = overrides.tts ?? `${onnxDir}/tts.json`;
+    const cfgs = await (await fetch(cfgsUrl)).json();
     
-    const dpPath = `${onnxDir}/duration_predictor.onnx`;
-    const textEncPath = `${onnxDir}/text_encoder.onnx`;
-    const vectorEstPath = `${onnxDir}/vector_estimator.onnx`;
-    const vocoderPath = `${onnxDir}/vocoder.onnx`;
+    const dpPath = overrides.duration_predictor ?? `${onnxDir}/duration_predictor.onnx`;
+    const textEncPath = overrides.text_encoder ?? `${onnxDir}/text_encoder.onnx`;
+    const vectorEstPath = overrides.vector_estimator ?? `${onnxDir}/vector_estimator.onnx`;
+    const vocoderPath = overrides.vocoder ?? `${onnxDir}/vocoder.onnx`;
     
     const modelPaths = [
         { name: 'Duration Predictor', path: dpPath },
@@ -464,7 +487,9 @@ export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCal
     
     const [dpOrt, textEncOrt, vectorEstOrt, vocoderOrt] = sessions;
     
-    const textProcessor = await loadTextProcessor(onnxDir);
+    const indexerUrl = overrides.unicode_indexer ?? `${onnxDir}/unicode_indexer.json`;
+    const indexer = await (await fetch(indexerUrl)).json();
+    const textProcessor = new UnicodeProcessor(indexer);
     const textToSpeech = new TextToSpeech(cfgs, textProcessor, dpOrt, textEncOrt, vectorEstOrt, vocoderOrt);
     
     return { textToSpeech, cfgs };
