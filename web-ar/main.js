@@ -197,6 +197,26 @@ function validateBundle(bundle) {
     }
 }
 
+async function probeWebGPU() {
+    if (typeof navigator === 'undefined' || !navigator.gpu) return false;
+    try {
+        const adapter = await Promise.race([
+            navigator.gpu.requestAdapter().catch(() => null),
+            new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
+        if (!adapter) return false;
+        const device = await Promise.race([
+            adapter.requestDevice().catch(() => null),
+            new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
+        if (!device) return false;
+        try { device.destroy(); } catch (_) { /* ignore */ }
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
 function hideImportPanel() {
     if (importPanel) importPanel.hidden = true;
 }
@@ -216,7 +236,13 @@ async function initializeModels() {
         const basePath = ONNX_BASE;
         const overrides = await modelOverrides();
 
-        // Try WebGPU first, fallback to WASM
+        // Probe WebGPU support — only attempt the WebGPU EP if the browser
+        // actually advertises a working adapter. On many mobile browsers
+        // (Kiwi, Samsung Internet, …) `navigator.gpu` is defined but the
+        // first call to `InferenceSession.create({executionProviders:['webgpu']})`
+        // hangs while trying to acquire a GPU device. To keep mobile users
+        // from seeing the loader freeze on the first model, we fall straight
+        // to WASM unless we can verify a real adapter.
         let executionProvider = 'wasm';
         const onProgress = (evt) => {
             if (evt.phase === 'start') {
@@ -226,21 +252,28 @@ async function initializeModels() {
             }
             renderProgress(evt);
         };
-        try {
-            const result = await loadTextToSpeech(basePath, {
-                executionProviders: ['webgpu'],
-                graphOptimizationLevel: 'all'
-            }, onProgress, overrides);
 
-            textToSpeech = result.textToSpeech;
-            cfgs = result.cfgs;
+        const webgpuAvailable = await probeWebGPU();
+        if (webgpuAvailable) {
+            try {
+                const result = await loadTextToSpeech(basePath, {
+                    executionProviders: ['webgpu'],
+                    graphOptimizationLevel: 'all'
+                }, onProgress, overrides);
 
-            executionProvider = 'webgpu';
-            backendBadge.textContent = 'WebGPU';
-            backendBadge.style.background = '#4caf50';
-        } catch (webgpuError) {
-            console.log('WebGPU not available, falling back to WebAssembly');
+                textToSpeech = result.textToSpeech;
+                cfgs = result.cfgs;
 
+                executionProvider = 'webgpu';
+                backendBadge.textContent = 'WebGPU';
+                backendBadge.style.background = '#4caf50';
+            } catch (webgpuError) {
+                console.log('WebGPU session create failed, falling back to WebAssembly', webgpuError);
+                textToSpeech = null;
+                cfgs = null;
+            }
+        }
+        if (!textToSpeech) {
             const result = await loadTextToSpeech(basePath, {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'
