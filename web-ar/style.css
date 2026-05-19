@@ -234,6 +234,93 @@ button:disabled {
     color: #1a237e;
 }
 
+.import-panel {
+    background: #ffffff;
+    border: 1px solid #d6d9e0;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.import-panel[hidden] {
+    display: none;
+}
+
+.import-panel-title {
+    font-size: 1.05em;
+    font-weight: 700;
+    color: #1a237e;
+    margin-bottom: 12px;
+}
+
+.import-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 560px) {
+    .import-panel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.import-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: start;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid #c5cae9;
+    border-radius: 12px;
+    background: #f5f7ff;
+    color: #1a237e;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.import-option:hover,
+.import-option:focus-visible {
+    background: #e8eaff;
+    border-color: #5b3a98;
+    outline: none;
+}
+
+.import-option:active {
+    transform: scale(0.99);
+}
+
+.import-option-icon {
+    font-size: 1.6em;
+    line-height: 1;
+}
+
+.import-option-title {
+    font-size: 1.0em;
+    font-weight: 700;
+}
+
+.import-option-sub {
+    font-size: 0.85em;
+    color: #455a64;
+    font-weight: 400;
+}
+
+.import-panel-help {
+    margin-top: 12px;
+    font-size: 0.88em;
+    color: #455a64;
+}
+
+.import-panel-help a {
+    color: #5b3a98;
+    font-weight: 700;
+    text-decoration: underline;
+}
+
 .ref-audio-info {
     color: #4caf50;
     font-weight: 700;

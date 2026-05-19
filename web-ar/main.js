@@ -1,8 +1,11 @@
+import { unzip } from 'fflate';
 import {
     loadTextToSpeech,
     loadVoiceStyle,
     writeWavFile
 } from './helper.js';
+
+const MODELS_ZIP_URL = 'https://github.com/alazi900-coder/supertonic-ar/releases/download/models-v1/supertonic-ar-models.zip';
 
 // Configuration
 // When this app is deployed (no local /assets folder), fetch model weights and
@@ -23,7 +26,22 @@ const VECTOR_ESTIMATOR_CHUNKS = [
     `${RAW_BASE}/onnx/vector_estimator.part.3`,
 ];
 
+// In-memory bundle populated by importing a ZIP file. Keys are the canonical
+// names the app looks up (e.g. `onnx/tts.json`, `voice_styles/M1.json`). When
+// a key is present here we bypass the network entirely and use the bytes.
+let modelBundle = null;
+
 function modelOverrides() {
+    if (modelBundle) {
+        return {
+            tts: modelBundle.get('onnx/tts.json'),
+            unicode_indexer: modelBundle.get('onnx/unicode_indexer.json'),
+            duration_predictor: modelBundle.get('onnx/duration_predictor.onnx'),
+            text_encoder: modelBundle.get('onnx/text_encoder.onnx'),
+            vocoder: modelBundle.get('onnx/vocoder.onnx'),
+            vector_estimator: modelBundle.get('onnx/vector_estimator.onnx'),
+        };
+    }
     if (!MODEL_HOSTED) return {};
     return {
         tts: `${ONNX_BASE}/tts.json`,
@@ -35,9 +53,14 @@ function modelOverrides() {
     };
 }
 
-function voiceStyleUrl(localPath) {
+function voiceStyleSource(localPath) {
+    const filename = getFilenameFromPath(localPath);
+    if (modelBundle) {
+        const bytes = modelBundle.get(`voice_styles/${filename}`);
+        if (bytes) return bytes;
+    }
     if (!MODEL_HOSTED) return localPath;
-    return `${VOICE_STYLES_BASE}/${getFilenameFromPath(localPath)}`;
+    return `${VOICE_STYLES_BASE}/${filename}`;
 }
 
 const DEFAULT_VOICE_STYLE_PATH = 'assets/voice_styles/M1.json';
@@ -77,6 +100,11 @@ const errorBox = document.getElementById('error');
 const progressWrap = document.getElementById('progressWrap');
 const progressFill = document.getElementById('progressFill');
 const progressMeta = document.getElementById('progressMeta');
+const importPanel = document.getElementById('importPanel');
+const importZipBtn = document.getElementById('importZipBtn');
+const importZipInput = document.getElementById('importZipInput');
+const startNetworkBtn = document.getElementById('startNetworkBtn');
+const downloadZipLink = document.getElementById('downloadZipLink');
 
 const MODEL_NAME_AR = {
     'Duration Predictor': 'توقع مدة الصوت (Duration Predictor)',
@@ -141,8 +169,8 @@ function showBackendBadge() {
 // Load voice style from JSON
 async function loadStyleFromJSON(stylePath) {
     try {
-        const url = voiceStyleUrl(stylePath);
-        const style = await loadVoiceStyle([url], true);
+        const source = voiceStyleSource(stylePath);
+        const style = await loadVoiceStyle([source], true);
         return style;
     } catch (error) {
         console.error('Error loading voice style:', error);
@@ -150,10 +178,62 @@ async function loadStyleFromJSON(stylePath) {
     }
 }
 
+// Parse a user-supplied .zip file into the in-memory `modelBundle`. The
+// archive must contain `onnx/*.onnx` + `onnx/*.json` + `voice_styles/*.json`
+// at any nested depth — entries are matched by their basename. Returns the
+// number of entries unpacked.
+function parseModelsZip(zipBytes, onProgressMsg) {
+    return new Promise((resolve, reject) => {
+        if (onProgressMsg) onProgressMsg('decoding');
+        unzip(zipBytes, (err, files) => {
+            if (err) return reject(err);
+            const bundle = new Map();
+            for (const [path, data] of Object.entries(files)) {
+                if (!(data instanceof Uint8Array) || data.length === 0) continue;
+                const norm = path.replace(/\\/g, '/');
+                const base = norm.split('/').pop();
+                if (norm.includes('voice_styles/') && base.endsWith('.json')) {
+                    bundle.set(`voice_styles/${base}`, data);
+                } else if (norm.includes('onnx/') || /(\.onnx|tts\.json|unicode_indexer\.json)$/.test(base)) {
+                    bundle.set(`onnx/${base}`, data);
+                }
+            }
+            resolve(bundle);
+        });
+    });
+}
+
+function validateBundle(bundle) {
+    const required = [
+        'onnx/tts.json',
+        'onnx/unicode_indexer.json',
+        'onnx/duration_predictor.onnx',
+        'onnx/text_encoder.onnx',
+        'onnx/vector_estimator.onnx',
+        'onnx/vocoder.onnx',
+        'voice_styles/M1.json',
+    ];
+    const missing = required.filter((k) => !bundle.has(k));
+    if (missing.length > 0) {
+        throw new Error(`الملف لا يحتوي على: ${missing.join(', ')}`);
+    }
+}
+
+function hideImportPanel() {
+    if (importPanel) importPanel.hidden = true;
+}
+
+function showImportPanel() {
+    if (importPanel) importPanel.hidden = false;
+}
+
 // Load models on page load
 async function initializeModels() {
     try {
-        showStatus('ℹ️ <strong>جارٍ تحميل الإعدادات…</strong>');
+        hideImportPanel();
+        showStatus(modelBundle
+            ? 'ℹ️ <strong>جارٍ فكّ ملفات النماذج المستوردة…</strong>'
+            : 'ℹ️ <strong>جارٍ تحميل الإعدادات…</strong>');
 
         const basePath = ONNX_BASE;
         const overrides = modelOverrides();
@@ -207,6 +287,39 @@ async function initializeModels() {
     } catch (error) {
         console.error('Error loading models:', error);
         showStatus(`❌ <strong>تعذّر تحميل النماذج:</strong> ${error.message}`, 'error');
+        showImportPanel();
+    }
+}
+
+async function handleZipImport(file) {
+    try {
+        hideImportPanel();
+        hideError();
+        showStatus(`ℹ️ <strong>جارٍ قراءة ملف النماذج…</strong> ${file.name} (${formatBytes(file.size)})`);
+        progressWrap.hidden = false;
+        progressFill.style.width = '10%';
+        progressMeta.innerHTML = `<span><strong>قراءة الملف…</strong></span><span>${formatBytes(file.size)}</span>`;
+
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+
+        progressFill.style.width = '40%';
+        progressMeta.innerHTML = `<span><strong>فكّ الضغط…</strong></span><span>${formatBytes(bytes.byteLength)}</span>`;
+
+        const bundle = await parseModelsZip(bytes);
+        validateBundle(bundle);
+        modelBundle = bundle;
+
+        progressFill.style.width = '70%';
+        progressMeta.innerHTML = `<span><strong>تجهيز ${toArabicDigits(bundle.size)} ملفاً…</strong></span><span>${formatBytes(bytes.byteLength)}</span>`;
+
+        await initializeModels();
+    } catch (error) {
+        console.error('ZIP import failed:', error);
+        hideProgress();
+        showStatus(`❌ <strong>فشل استيراد الملف:</strong> ${error.message}`, 'error');
+        showError(`فشل استيراد الملف: ${error.message}`);
+        showImportPanel();
     }
 }
 
@@ -377,6 +490,29 @@ window.downloadAudio = function(url, filename) {
 // Attach generate function to button
 generateBtn.addEventListener('click', generateSpeech);
 
+// Wire ZIP import button
+if (importZipBtn && importZipInput) {
+    importZipBtn.addEventListener('click', () => importZipInput.click());
+    importZipInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        handleZipImport(file);
+        e.target.value = '';
+    });
+}
+
+// Wire "download from internet" button
+if (startNetworkBtn) {
+    startNetworkBtn.addEventListener('click', () => {
+        modelBundle = null;
+        initializeModels();
+    });
+}
+
+if (downloadZipLink) {
+    downloadZipLink.href = MODELS_ZIP_URL;
+}
+
 // Register the PWA service worker so the page is installable on Android.
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -386,8 +522,9 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Initialize on load
-window.addEventListener('load', async () => {
+// On load, show the choose-how-to-load panel rather than auto-fetching ~382MB.
+window.addEventListener('load', () => {
     generateBtn.disabled = true;
-    await initializeModels();
+    showImportPanel();
+    showStatus('ℹ️ <strong>اختر طريقة تحميل النماذج بالأسفل.</strong>');
 });
