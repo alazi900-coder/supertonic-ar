@@ -1,9 +1,9 @@
-import { unzip } from 'fflate';
 import {
     loadTextToSpeech,
     loadVoiceStyle,
     writeWavFile
 } from './helper.js';
+import { openZipBundle } from './zipBundle.js';
 
 const MODELS_ZIP_URL = 'https://github.com/alazi900-coder/supertonic-ar/releases/download/models-v1/supertonic-ar-models.zip';
 
@@ -26,21 +26,25 @@ const VECTOR_ESTIMATOR_CHUNKS = [
     `${RAW_BASE}/onnx/vector_estimator.part.3`,
 ];
 
-// In-memory bundle populated by importing a ZIP file. Keys are the canonical
-// names the app looks up (e.g. `onnx/tts.json`, `voice_styles/M1.json`). When
-// a key is present here we bypass the network entirely and use the bytes.
+// Lazy bundle backed by an imported ZIP file. Built by `openZipBundle()` and
+// exposes `.blob(key)` for each canonical entry (e.g. `onnx/tts.json`,
+// `voice_styles/M1.json`). When the bundle is set, model loading bypasses
+// the network and pulls bytes directly from disk-backed Blob slices — this
+// keeps peak memory low enough to work reliably on Android.
 let modelBundle = null;
 
-function modelOverrides() {
+async function modelOverrides() {
     if (modelBundle) {
-        return {
-            tts: modelBundle.get('onnx/tts.json'),
-            unicode_indexer: modelBundle.get('onnx/unicode_indexer.json'),
-            duration_predictor: modelBundle.get('onnx/duration_predictor.onnx'),
-            text_encoder: modelBundle.get('onnx/text_encoder.onnx'),
-            vocoder: modelBundle.get('onnx/vocoder.onnx'),
-            vector_estimator: modelBundle.get('onnx/vector_estimator.onnx'),
-        };
+        const [tts, unicode_indexer, duration_predictor, text_encoder, vocoder, vector_estimator] =
+            await Promise.all([
+                modelBundle.blob('onnx/tts.json'),
+                modelBundle.blob('onnx/unicode_indexer.json'),
+                modelBundle.blob('onnx/duration_predictor.onnx'),
+                modelBundle.blob('onnx/text_encoder.onnx'),
+                modelBundle.blob('onnx/vocoder.onnx'),
+                modelBundle.blob('onnx/vector_estimator.onnx'),
+            ]);
+        return { tts, unicode_indexer, duration_predictor, text_encoder, vocoder, vector_estimator };
     }
     if (!MODEL_HOSTED) return {};
     return {
@@ -53,11 +57,10 @@ function modelOverrides() {
     };
 }
 
-function voiceStyleSource(localPath) {
+async function voiceStyleSource(localPath) {
     const filename = getFilenameFromPath(localPath);
-    if (modelBundle) {
-        const bytes = modelBundle.get(`voice_styles/${filename}`);
-        if (bytes) return bytes;
+    if (modelBundle && modelBundle.has(`voice_styles/${filename}`)) {
+        return await modelBundle.blob(`voice_styles/${filename}`);
     }
     if (!MODEL_HOSTED) return localPath;
     return `${VOICE_STYLES_BASE}/${filename}`;
@@ -169,38 +172,13 @@ function showBackendBadge() {
 // Load voice style from JSON
 async function loadStyleFromJSON(stylePath) {
     try {
-        const source = voiceStyleSource(stylePath);
+        const source = await voiceStyleSource(stylePath);
         const style = await loadVoiceStyle([source], true);
         return style;
     } catch (error) {
         console.error('Error loading voice style:', error);
         throw error;
     }
-}
-
-// Parse a user-supplied .zip file into the in-memory `modelBundle`. The
-// archive must contain `onnx/*.onnx` + `onnx/*.json` + `voice_styles/*.json`
-// at any nested depth — entries are matched by their basename. Returns the
-// number of entries unpacked.
-function parseModelsZip(zipBytes, onProgressMsg) {
-    return new Promise((resolve, reject) => {
-        if (onProgressMsg) onProgressMsg('decoding');
-        unzip(zipBytes, (err, files) => {
-            if (err) return reject(err);
-            const bundle = new Map();
-            for (const [path, data] of Object.entries(files)) {
-                if (!(data instanceof Uint8Array) || data.length === 0) continue;
-                const norm = path.replace(/\\/g, '/');
-                const base = norm.split('/').pop();
-                if (norm.includes('voice_styles/') && base.endsWith('.json')) {
-                    bundle.set(`voice_styles/${base}`, data);
-                } else if (norm.includes('onnx/') || /(\.onnx|tts\.json|unicode_indexer\.json)$/.test(base)) {
-                    bundle.set(`onnx/${base}`, data);
-                }
-            }
-            resolve(bundle);
-        });
-    });
 }
 
 function validateBundle(bundle) {
@@ -236,7 +214,7 @@ async function initializeModels() {
             : 'ℹ️ <strong>جارٍ تحميل الإعدادات…</strong>');
 
         const basePath = ONNX_BASE;
-        const overrides = modelOverrides();
+        const overrides = await modelOverrides();
 
         // Try WebGPU first, fallback to WASM
         let executionProvider = 'wasm';
@@ -295,23 +273,20 @@ async function handleZipImport(file) {
     try {
         hideImportPanel();
         hideError();
-        showStatus(`ℹ️ <strong>جارٍ قراءة ملف النماذج…</strong> ${file.name} (${formatBytes(file.size)})`);
+        showStatus(`ℹ️ <strong>جارٍ قراءة فهرس ملف النماذج…</strong> ${file.name} (${formatBytes(file.size)})`);
         progressWrap.hidden = false;
-        progressFill.style.width = '10%';
-        progressMeta.innerHTML = `<span><strong>قراءة الملف…</strong></span><span>${formatBytes(file.size)}</span>`;
+        progressFill.style.width = '20%';
+        progressMeta.innerHTML = `<span><strong>قراءة فهرس ZIP…</strong></span><span>${formatBytes(file.size)}</span>`;
 
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-
-        progressFill.style.width = '40%';
-        progressMeta.innerHTML = `<span><strong>فكّ الضغط…</strong></span><span>${formatBytes(bytes.byteLength)}</span>`;
-
-        const bundle = await parseModelsZip(bytes);
+        // Open the archive as a *lazy* bundle — only the ZIP central directory
+        // (~1 kB at the end of the file) is read here. Individual entries are
+        // pulled in on demand when the models are actually loaded.
+        const bundle = await openZipBundle(file);
         validateBundle(bundle);
         modelBundle = bundle;
 
-        progressFill.style.width = '70%';
-        progressMeta.innerHTML = `<span><strong>تجهيز ${toArabicDigits(bundle.size)} ملفاً…</strong></span><span>${formatBytes(bytes.byteLength)}</span>`;
+        progressFill.style.width = '40%';
+        progressMeta.innerHTML = `<span><strong>تم العثور على ${toArabicDigits(bundle.size)} ملفاً…</strong></span><span>${formatBytes(file.size)}</span>`;
 
         await initializeModels();
     } catch (error) {
