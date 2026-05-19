@@ -428,7 +428,79 @@ export async function loadTextProcessor(onnxDir) {
 /**
  * Load ONNX model
  */
-export async function loadOnnx(onnxPath, options) {
+async function fetchWithProgress(url, onProgress) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Failed to fetch ${url}: ${r.status}`);
+    const totalHeader = r.headers.get('content-length');
+    const total = totalHeader ? parseInt(totalHeader, 10) : 0;
+    if (!r.body || !r.body.getReader) {
+        const buf = await r.arrayBuffer();
+        if (onProgress) onProgress(buf.byteLength, buf.byteLength || total);
+        return buf;
+    }
+    const reader = r.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (onProgress) onProgress(received, total);
+    }
+    const out = new Uint8Array(received);
+    let offset = 0;
+    for (const c of chunks) { out.set(c, offset); offset += c.length; }
+    return out.buffer;
+}
+
+async function loadAndConcat(urls, onProgress) {
+    // First pass: discover total bytes via HEAD requests so we can show
+    // a smooth overall progress bar across all shards.
+    let combinedTotal = 0;
+    const sizes = [];
+    for (const url of urls) {
+        try {
+            const head = await fetch(url, { method: 'HEAD' });
+            const len = parseInt(head.headers.get('content-length') || '0', 10);
+            sizes.push(len);
+            combinedTotal += len;
+        } catch (e) {
+            sizes.push(0);
+        }
+    }
+    const buffers = [];
+    let combinedSoFar = 0;
+    for (let i = 0; i < urls.length; i++) {
+        const buf = await fetchWithProgress(urls[i], (received, totalForThis) => {
+            if (onProgress) {
+                const totalKnown = combinedTotal || (sizes[i] || totalForThis);
+                onProgress(combinedSoFar + received, totalKnown);
+            }
+        });
+        combinedSoFar += buf.byteLength;
+        buffers.push(buf);
+    }
+    let total = 0;
+    for (const b of buffers) total += b.byteLength;
+    const combined = new Uint8Array(total);
+    let offset = 0;
+    for (const b of buffers) {
+        combined.set(new Uint8Array(b), offset);
+        offset += b.byteLength;
+    }
+    return combined;
+}
+
+export async function loadOnnx(onnxPath, options, onProgress = null) {
+    if (onnxPath && typeof onnxPath === 'object' && Array.isArray(onnxPath.chunks)) {
+        const bytes = await loadAndConcat(onnxPath.chunks, onProgress);
+        return await ort.InferenceSession.create(bytes, options);
+    }
+    if (typeof onnxPath === 'string' && onProgress) {
+        const buf = await fetchWithProgress(onnxPath, onProgress);
+        return await ort.InferenceSession.create(buf, options);
+    }
     const session = await ort.InferenceSession.create(onnxPath, options);
     return session;
 }
@@ -436,15 +508,16 @@ export async function loadOnnx(onnxPath, options) {
 /**
  * Load all TTS components
  */
-export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCallback = null) {
+export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCallback = null, overrides = {}) {
     console.log('Using WebAssembly/WebGPU for inference');
     
-    const cfgs = await loadCfgs(onnxDir);
+    const cfgsUrl = overrides.tts ?? `${onnxDir}/tts.json`;
+    const cfgs = await (await fetch(cfgsUrl)).json();
     
-    const dpPath = `${onnxDir}/duration_predictor.onnx`;
-    const textEncPath = `${onnxDir}/text_encoder.onnx`;
-    const vectorEstPath = `${onnxDir}/vector_estimator.onnx`;
-    const vocoderPath = `${onnxDir}/vocoder.onnx`;
+    const dpPath = overrides.duration_predictor ?? `${onnxDir}/duration_predictor.onnx`;
+    const textEncPath = overrides.text_encoder ?? `${onnxDir}/text_encoder.onnx`;
+    const vectorEstPath = overrides.vector_estimator ?? `${onnxDir}/vector_estimator.onnx`;
+    const vocoderPath = overrides.vocoder ?? `${onnxDir}/vocoder.onnx`;
     
     const modelPaths = [
         { name: 'Duration Predictor', path: dpPath },
@@ -456,15 +529,45 @@ export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCal
     const sessions = [];
     for (let i = 0; i < modelPaths.length; i++) {
         if (progressCallback) {
-            progressCallback(modelPaths[i].name, i + 1, modelPaths.length);
+            progressCallback({
+                modelName: modelPaths[i].name,
+                modelIndex: i + 1,
+                modelCount: modelPaths.length,
+                bytesReceived: 0,
+                bytesTotal: 0,
+                phase: 'start',
+            });
         }
-        const session = await loadOnnx(modelPaths[i].path, sessionOptions);
+        const session = await loadOnnx(modelPaths[i].path, sessionOptions, (received, total) => {
+            if (progressCallback) {
+                progressCallback({
+                    modelName: modelPaths[i].name,
+                    modelIndex: i + 1,
+                    modelCount: modelPaths.length,
+                    bytesReceived: received,
+                    bytesTotal: total,
+                    phase: 'downloading',
+                });
+            }
+        });
         sessions.push(session);
+        if (progressCallback) {
+            progressCallback({
+                modelName: modelPaths[i].name,
+                modelIndex: i + 1,
+                modelCount: modelPaths.length,
+                bytesReceived: 0,
+                bytesTotal: 0,
+                phase: 'done',
+            });
+        }
     }
     
     const [dpOrt, textEncOrt, vectorEstOrt, vocoderOrt] = sessions;
     
-    const textProcessor = await loadTextProcessor(onnxDir);
+    const indexerUrl = overrides.unicode_indexer ?? `${onnxDir}/unicode_indexer.json`;
+    const indexer = await (await fetch(indexerUrl)).json();
+    const textProcessor = new UnicodeProcessor(indexer);
     const textToSpeech = new TextToSpeech(cfgs, textProcessor, dpOrt, textEncOrt, vectorEstOrt, vocoderOrt);
     
     return { textToSpeech, cfgs };

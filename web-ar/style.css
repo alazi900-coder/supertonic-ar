@@ -198,6 +198,42 @@ button:disabled {
     visibility: visible;
 }
 
+.progress-wrap {
+    margin-top: 10px;
+}
+
+.progress-wrap[hidden] {
+    display: none;
+}
+
+.progress-bar {
+    height: 8px;
+    background: rgba(33, 150, 243, 0.18);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #2196f3, #5b3a98);
+    transition: width 0.15s ease-out;
+}
+
+.progress-meta {
+    margin-top: 6px;
+    font-size: 0.85em;
+    color: #455a64;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    direction: rtl;
+}
+
+.progress-meta strong {
+    color: #1a237e;
+}
+
 .ref-audio-info {
     color: #4caf50;
     font-weight: 700;
