@@ -21,14 +21,36 @@
 
             <div id="statusBox" class="status-box">
                 <div class="status-text-wrapper">
-                    <div id="statusText">ℹ️ <strong>جارٍ تحميل النماذج…</strong>
-                        يرجى الانتظار…</div>
+                    <div id="statusText">ℹ️ <strong>اختر طريقة تحميل النماذج بالأسفل.</strong></div>
                     <div id="progressWrap" class="progress-wrap" hidden>
                         <div id="progressBar" class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
                         <div id="progressMeta" class="progress-meta"></div>
                     </div>
                 </div>
                 <div id="backendBadge" class="backend-badge">WebAssembly</div>
+            </div>
+
+            <div id="importPanel" class="import-panel">
+                <div class="import-panel-title">طريقة تحميل النماذج</div>
+                <div class="import-panel-grid">
+                    <button id="startNetworkBtn" class="import-option">
+                        <span class="import-option-icon">⬇️</span>
+                        <span class="import-option-title">تنزيل من الإنترنت</span>
+                        <span class="import-option-sub">≈ ٣٨٢ ميجا لمرة واحدة · يأخذ دقائق حسب سرعة الشبكة</span>
+                    </button>
+                    <button id="importZipBtn" class="import-option">
+                        <span class="import-option-icon">📦</span>
+                        <span class="import-option-title">استيراد ملف ZIP من جهازي</span>
+                        <span class="import-option-sub">تعمل دون إنترنت · يفيد للنقل بين الأجهزة</span>
+                    </button>
+                </div>
+                <input id="importZipInput" type="file" accept=".zip,application/zip" hidden>
+                <div class="import-panel-help">
+                    ليس لديك ملف النماذج بعد؟
+                    <a id="downloadZipLink" href="https://github.com/alazi900-coder/supertonic-ar/releases/download/models-v1/supertonic-ar-models.zip"
+                        target="_blank" rel="noopener">نزّل supertonic-ar-models.zip (≈ ٣٨٢ ميجا)</a>
+                    ثم استورده هنا لاحقاً.
+                </div>
             </div>
 
             <div class="main-content">

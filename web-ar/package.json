@@ -8,10 +8,20 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": ["tts", "onnx", "speech-synthesis", "web", "arabic", "rtl", "android", "pwa"],
+  "keywords": [
+    "tts",
+    "onnx",
+    "speech-synthesis",
+    "web",
+    "arabic",
+    "rtl",
+    "android",
+    "pwa"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "fflate": "^0.8.3",
     "fft.js": "^4.0.3",
     "onnxruntime-web": "^1.17.0"
   },

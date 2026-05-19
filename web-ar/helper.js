@@ -360,9 +360,9 @@ export class TextToSpeech {
 export async function loadVoiceStyle(voiceStylePaths, verbose = false) {
     const bsz = voiceStylePaths.length;
     
-    // Read first file to get dimensions
-    const firstResponse = await fetch(voiceStylePaths[0]);
-    const firstStyle = await firstResponse.json();
+    // Read first file to get dimensions. Each entry may already be a parsed
+    // object (e.g. preloaded from a user-supplied ZIP) or a URL string.
+    const firstStyle = await loadJsonSource(voiceStylePaths[0]);
     
     const ttlDims = firstStyle.style_ttl.dims;
     const dpDims = firstStyle.style_dp.dims;
@@ -380,8 +380,7 @@ export async function loadVoiceStyle(voiceStylePaths, verbose = false) {
     
     // Fill in the data
     for (let i = 0; i < bsz; i++) {
-        const response = await fetch(voiceStylePaths[i]);
-        const voiceStyle = await response.json();
+        const voiceStyle = await loadJsonSource(voiceStylePaths[i]);
         
         // Flatten TTL data
         const ttlData = voiceStyle.style_ttl.data.flat(Infinity);
@@ -493,6 +492,15 @@ async function loadAndConcat(urls, onProgress) {
 }
 
 export async function loadOnnx(onnxPath, options, onProgress = null) {
+    // Already-resolved bytes (e.g. extracted from a user-supplied ZIP bundle).
+    if (onnxPath instanceof Uint8Array) {
+        if (onProgress) onProgress(onnxPath.byteLength, onnxPath.byteLength);
+        return await ort.InferenceSession.create(onnxPath, options);
+    }
+    if (onnxPath instanceof ArrayBuffer) {
+        if (onProgress) onProgress(onnxPath.byteLength, onnxPath.byteLength);
+        return await ort.InferenceSession.create(onnxPath, options);
+    }
     if (onnxPath && typeof onnxPath === 'object' && Array.isArray(onnxPath.chunks)) {
         const bytes = await loadAndConcat(onnxPath.chunks, onProgress);
         return await ort.InferenceSession.create(bytes, options);
@@ -505,14 +513,32 @@ export async function loadOnnx(onnxPath, options, onProgress = null) {
     return session;
 }
 
+// Helper that loads a JSON config either from an in-memory value, a Uint8Array
+// of UTF-8 bytes, or a URL.
+async function loadJsonSource(source) {
+    if (source && typeof source === 'object'
+        && !(source instanceof Uint8Array)
+        && !(source instanceof ArrayBuffer)) {
+        return source;
+    }
+    if (source instanceof Uint8Array) {
+        return JSON.parse(new TextDecoder('utf-8').decode(source));
+    }
+    if (source instanceof ArrayBuffer) {
+        return JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(source)));
+    }
+    const r = await fetch(source);
+    return await r.json();
+}
+
 /**
  * Load all TTS components
  */
 export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCallback = null, overrides = {}) {
     console.log('Using WebAssembly/WebGPU for inference');
     
-    const cfgsUrl = overrides.tts ?? `${onnxDir}/tts.json`;
-    const cfgs = await (await fetch(cfgsUrl)).json();
+    const cfgsSource = overrides.tts ?? `${onnxDir}/tts.json`;
+    const cfgs = await loadJsonSource(cfgsSource);
     
     const dpPath = overrides.duration_predictor ?? `${onnxDir}/duration_predictor.onnx`;
     const textEncPath = overrides.text_encoder ?? `${onnxDir}/text_encoder.onnx`;
@@ -565,8 +591,8 @@ export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCal
     
     const [dpOrt, textEncOrt, vectorEstOrt, vocoderOrt] = sessions;
     
-    const indexerUrl = overrides.unicode_indexer ?? `${onnxDir}/unicode_indexer.json`;
-    const indexer = await (await fetch(indexerUrl)).json();
+    const indexerSource = overrides.unicode_indexer ?? `${onnxDir}/unicode_indexer.json`;
+    const indexer = await loadJsonSource(indexerSource);
     const textProcessor = new UnicodeProcessor(indexer);
     const textToSpeech = new TextToSpeech(cfgs, textProcessor, dpOrt, textEncOrt, vectorEstOrt, vocoderOrt);
     
