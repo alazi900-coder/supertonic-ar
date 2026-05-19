@@ -1,0 +1,524 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, "Geeza Pro",
+        "Arabic Typesetting", -apple-system, BlinkMacSystemFont, Roboto,
+        sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    color: #222;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.container {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 32px 24px;
+    max-width: 1400px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin-top: 24px;
+    align-items: start;
+}
+
+.left-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.right-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 2em;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+.subtitle {
+    color: #666;
+    margin-bottom: 28px;
+    font-size: 1.05em;
+    line-height: 1.6;
+}
+
+.section {
+    margin-bottom: 22px;
+}
+
+label {
+    display: block;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 0.95em;
+}
+
+select,
+textarea,
+input[type="number"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1em;
+    font-family: inherit;
+    background: white;
+    color: #222;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    direction: rtl;
+}
+
+select:focus,
+textarea:focus,
+input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+    line-height: 1.7;
+}
+
+.params-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 16px 30px;
+    font-size: 1.1em;
+    font-weight: 700;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 100%;
+    transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+    font-family: inherit;
+    min-height: 52px;
+}
+
+button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Status box uses border-inline-start so it correctly appears
+   on the right side in RTL layout. */
+.status-box {
+    background: #e3f2fd;
+    border-inline-start: 4px solid #2196f3;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 0.95em;
+    color: #1565c0;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 52px;
+    line-height: 1.6;
+}
+
+.status-box.success {
+    background: #e8f5e9;
+    border-inline-start-color: #4caf50;
+    color: #2e7d32;
+}
+
+.status-box.error {
+    background: #ffebee;
+    border-inline-start-color: #f44336;
+    color: #c62828;
+}
+
+.status-text-wrapper {
+    flex: 1;
+    min-width: 200px;
+}
+
+.backend-badge {
+    display: inline-block;
+    visibility: hidden;
+    padding: 6px 12px;
+    background: #ff9800;
+    color: white;
+    border-radius: 14px;
+    font-size: 0.85em;
+    font-weight: 700;
+    margin-inline-start: 8px;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+
+.backend-badge.visible {
+    visibility: visible;
+}
+
+.ref-audio-info {
+    color: #4caf50;
+    font-weight: 700;
+    font-size: 0.95em;
+}
+
+.ref-audio-label {
+    margin-bottom: 8px;
+}
+
+.ref-audio-label label {
+    display: inline;
+    margin-bottom: 0;
+}
+
+.results {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.result-item {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.result-item:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.result-text-container {
+    padding: 20px;
+    background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+    border-bottom: 1px solid #e8ecf5;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.result-text-label {
+    font-size: 0.78em;
+    letter-spacing: 0.5px;
+    color: #667eea;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.result-text {
+    color: #333;
+    line-height: 1.8;
+    font-size: 1em;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    padding-inline-end: 8px;
+    flex: 1;
+    direction: rtl;
+}
+
+.result-text::-webkit-scrollbar {
+    width: 6px;
+}
+
+.result-text::-webkit-scrollbar-track {
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+.result-text::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    border-radius: 3px;
+}
+
+.result-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    background: #fafbff;
+}
+
+.info-item {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95em;
+    color: #666;
+    border-bottom: 1px solid #e8ecf5;
+}
+
+/* In RTL, the divider should be on the inline-end of the first item. */
+.info-item:first-child {
+    border-inline-end: 1px solid #e8ecf5;
+}
+
+.info-item strong {
+    color: #333;
+    font-size: 1.1em;
+    font-weight: 700;
+    margin-inline-start: auto;
+}
+
+.result-player {
+    padding: 20px;
+    background: white;
+}
+
+.result-item audio {
+    width: 100%;
+    height: 48px;
+    outline: none;
+    /* Keep media controls in their natural LTR direction so play/pause/
+       progress remain familiar to users. */
+    direction: ltr;
+}
+
+.result-item audio:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.result-actions {
+    padding: 16px 20px 20px;
+    background: white;
+}
+
+.result-item button {
+    width: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1em;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+}
+
+.result-item button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+audio {
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Scoped to #error so it doesn't accidentally hide other elements
+   (such as .status-box.error) that share the .error class. */
+#error.error {
+    background: #fee;
+    color: #c00;
+    padding: 14px;
+    border-radius: 10px;
+    margin-top: 16px;
+    display: none;
+    font-weight: 600;
+    border-inline-start: 4px solid #c00;
+}
+
+#error.error.active {
+    display: block;
+}
+
+.app-footer {
+    margin-top: 28px;
+    text-align: center;
+    color: #888;
+    font-size: 0.85em;
+    line-height: 1.6;
+}
+
+.results-placeholder {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    padding: 60px 40px;
+    text-align: center;
+    color: #999;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    min-height: 320px;
+}
+
+.results-placeholder-icon {
+    font-size: 4em;
+    margin-bottom: 20px;
+    opacity: 0.6;
+    animation: float 3s ease-in-out infinite;
+}
+
+.results-placeholder.generating .results-placeholder-icon {
+    animation: spin 2s linear infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.results-placeholder p {
+    font-size: 1.05em;
+    color: #888;
+    font-weight: 500;
+    margin: 0;
+}
+
+.hidden {
+    display: none;
+}
+
+/* ---------- Responsive layout: tablet ---------- */
+@media (max-width: 1024px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Responsive layout: Android phones ---------- */
+@media (max-width: 640px) {
+    body {
+        padding: 0;
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        align-items: stretch;
+    }
+
+    .container {
+        border-radius: 0;
+        padding: 20px 16px 24px;
+        min-height: 100vh;
+        min-height: 100dvh;
+        box-shadow: none;
+    }
+
+    h1 {
+        font-size: 1.6em;
+    }
+
+    .subtitle {
+        font-size: 0.95em;
+        margin-bottom: 20px;
+    }
+
+    .main-content {
+        gap: 24px;
+        margin-top: 16px;
+    }
+
+    .section {
+        margin-bottom: 18px;
+    }
+
+    select,
+    textarea,
+    input[type="number"] {
+        font-size: 1em;
+        padding: 14px;
+        border-radius: 10px;
+    }
+
+    textarea {
+        min-height: 140px;
+    }
+
+    button {
+        padding: 16px;
+        font-size: 1.05em;
+        border-radius: 12px;
+    }
+
+    .params-grid {
+        grid-template-columns: 1fr;
+        gap: 18px;
+    }
+
+    .result-info {
+        grid-template-columns: 1fr;
+    }
+
+    .info-item:first-child {
+        border-inline-end: none;
+    }
+
+    .results-placeholder {
+        padding: 40px 20px;
+        min-height: 220px;
+    }
+
+    .status-box {
+        font-size: 0.9em;
+    }
+}
+
+/* Account for Android's status bar / notch when installed as a PWA. */
+@supports (padding: max(0px)) {
+    body {
+        padding-top: max(20px, env(safe-area-inset-top));
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+}

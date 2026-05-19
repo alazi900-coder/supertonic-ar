@@ -152,6 +152,13 @@ npm install
 npm run dev
 ```
 
+**Browser Example — Arabic (RTL, Android-friendly PWA)** ([Details](web-ar/))
+```bash
+cd web-ar
+npm install
+npm run dev
+```
+
 **Java Example** ([Details](java/))
 ```bash
 cd java
@@ -321,6 +328,7 @@ We provide ready-to-use TTS inference examples across multiple ecosystems:
 | [**Python**](py/) | `py/` | ONNX Runtime inference |
 | [**Node.js**](nodejs/) | `nodejs/` | Server-side JavaScript |
 | [**Browser**](web/) | `web/` | WebGPU/WASM inference |
+| [**Browser (Arabic / RTL, Android PWA)**](web-ar/) | `web-ar/` | Arabic UI variant of the browser demo |
 | [**Java**](java/) | `java/` | Cross-platform JVM |
 | [**C++**](cpp/) | `cpp/` | High-performance C++ |
 | [**C#**](csharp/) | `csharp/` | .NET ecosystem |
