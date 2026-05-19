@@ -74,6 +74,46 @@ const statusText = document.getElementById('statusText');
 const backendBadge = document.getElementById('backendBadge');
 const resultsContainer = document.getElementById('results');
 const errorBox = document.getElementById('error');
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressMeta = document.getElementById('progressMeta');
+
+const MODEL_NAME_AR = {
+    'Duration Predictor': 'توقع مدة الصوت (Duration Predictor)',
+    'Text Encoder': 'ترميز النص (Text Encoder)',
+    'Vector Estimator': 'تقدير المتجهات (Vector Estimator)',
+    'Vocoder': 'المُوليّد الصوتي (Vocoder)',
+};
+
+function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0';
+    const mb = bytes / (1024 * 1024);
+    if (mb >= 100) return `${toArabicDigits(Math.round(mb))} م.ب`;
+    return `${toArabicDigits(mb.toFixed(1))} م.ب`;
+}
+
+function renderProgress(evt) {
+    progressWrap.hidden = false;
+    const total = evt.bytesTotal || 0;
+    const recv = evt.bytesReceived || 0;
+    const pct = total > 0 ? Math.min(100, (recv / total) * 100) : 0;
+    progressFill.style.width = `${pct.toFixed(1)}%`;
+    const arName = MODEL_NAME_AR[evt.modelName] || evt.modelName;
+    const idx = toArabicDigits(evt.modelIndex);
+    const cnt = toArabicDigits(evt.modelCount);
+    const sizeText = total > 0
+        ? `${formatBytes(recv)} / ${formatBytes(total)} (${toArabicDigits(pct.toFixed(0))}٪)`
+        : `${formatBytes(recv)}`;
+    progressMeta.innerHTML =
+        `<span><strong>النموذج ${idx}/${cnt}:</strong> ${arName}</span>` +
+        `<span>${sizeText}</span>`;
+}
+
+function hideProgress() {
+    progressWrap.hidden = true;
+    progressFill.style.width = '0%';
+    progressMeta.textContent = '';
+}
 
 function showStatus(message, type = 'info') {
     statusText.innerHTML = message;
@@ -120,13 +160,19 @@ async function initializeModels() {
 
         // Try WebGPU first, fallback to WASM
         let executionProvider = 'wasm';
+        const onProgress = (evt) => {
+            if (evt.phase === 'start') {
+                showStatus(`ℹ️ <strong>جارٍ تحميل النموذج…</strong>`);
+            } else if (evt.phase === 'done') {
+                showStatus(`ℹ️ <strong>تمّ تحميل ${MODEL_NAME_AR[evt.modelName] || evt.modelName}</strong>`);
+            }
+            renderProgress(evt);
+        };
         try {
             const result = await loadTextToSpeech(basePath, {
                 executionProviders: ['webgpu'],
                 graphOptimizationLevel: 'all'
-            }, (modelName, current, total) => {
-                showStatus(`ℹ️ <strong>تحميل نماذج ONNX (${toArabicDigits(current)}/${toArabicDigits(total)}):</strong> ${modelName}…`);
-            }, overrides);
+            }, onProgress, overrides);
 
             textToSpeech = result.textToSpeech;
             cfgs = result.cfgs;
@@ -140,9 +186,7 @@ async function initializeModels() {
             const result = await loadTextToSpeech(basePath, {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'
-            }, (modelName, current, total) => {
-                showStatus(`ℹ️ <strong>تحميل نماذج ONNX (${toArabicDigits(current)}/${toArabicDigits(total)}):</strong> ${modelName}…`);
-            }, overrides);
+            }, onProgress, overrides);
 
             textToSpeech = result.textToSpeech;
             cfgs = result.cfgs;
@@ -155,6 +199,7 @@ async function initializeModels() {
         voiceStyleInfo.textContent = `${getFilenameFromPath(currentStylePath)} (افتراضي)`;
 
         showStatus(`✅ <strong>تم تحميل النماذج!</strong> يعمل التطبيق على ${executionProvider.toUpperCase()}. يمكنك الآن توليد الصوت.`, 'success');
+        hideProgress();
         showBackendBadge();
 
         generateBtn.disabled = false;
