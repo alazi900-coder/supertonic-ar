@@ -1,0 +1,21 @@
+{
+  "name": "سوبرتونيك ٣ — تحويل النص إلى كلام",
+  "short_name": "سوبرتونيك",
+  "description": "تحويل النص العربي إلى كلام، يعمل بالكامل داخل المتصفح على Android.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#5b3a98",
+  "theme_color": "#5b3a98",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

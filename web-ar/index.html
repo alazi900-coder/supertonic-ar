@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <meta name="theme-color" content="#5b3a98">
+        <meta name="description"
+            content="سوبرتونيك ٣ — تحويل النص العربي إلى كلام، يعمل بالكامل داخل المتصفح على Android.">
+        <title>سوبرتونيك ٣ — تحويل النص إلى كلام (نسخة عربية)</title>
+        <link rel="manifest" href="manifest.webmanifest">
+        <link rel="icon" type="image/svg+xml" href="icon.svg">
+        <link rel="apple-touch-icon" href="icon.svg">
+        <link rel="stylesheet" href="/style.css">
+    </head>
+    <body>
+        <div class="container">
+            <h1>🎤 سوبرتونيك ٣</h1>
+            <p class="subtitle">تحويل النص إلى كلام بـ ٣١ لغة — يعمل
+                داخل المتصفح بالكامل عبر ONNX Runtime Web</p>
+
+            <div id="statusBox" class="status-box">
+                <div class="status-text-wrapper">
+                    <div id="statusText">ℹ️ <strong>جارٍ تحميل النماذج…</strong>
+                        يرجى الانتظار…</div>
+                </div>
+                <div id="backendBadge" class="backend-badge">WebAssembly</div>
+            </div>
+
+            <div class="main-content">
+                <div class="left-panel">
+                    <div class="section">
+                        <div class="ref-audio-label">
+                            <label for="voiceStyleSelect">نمط الصوت: </label>
+                            <span id="voiceStyleInfo"
+                                class="ref-audio-info">جارٍ التحميل…</span>
+                        </div>
+                        <select id="voiceStyleSelect">
+                            <option value="assets/voice_styles/M1.json">رجل ١ (M1)</option>
+                            <option value="assets/voice_styles/M2.json">رجل ٢ (M2)</option>
+                            <option value="assets/voice_styles/M3.json">رجل ٣ (M3)</option>
+                            <option value="assets/voice_styles/M4.json">رجل ٤ (M4)</option>
+                            <option value="assets/voice_styles/M5.json">رجل ٥ (M5)</option>
+                            <option value="assets/voice_styles/F1.json">امرأة ١ (F1)</option>
+                            <option value="assets/voice_styles/F2.json">امرأة ٢ (F2)</option>
+                            <option value="assets/voice_styles/F3.json">امرأة ٣ (F3)</option>
+                            <option value="assets/voice_styles/F4.json">امرأة ٤ (F4)</option>
+                            <option value="assets/voice_styles/F5.json">امرأة ٥ (F5)</option>
+                        </select>
+                    </div>
+
+                    <div class="section">
+                        <label for="langSelect">لغة النص:</label>
+                        <select id="langSelect">
+                            <option value="ar" selected>العربية (ar)</option>
+                            <option value="en">الإنجليزية (en)</option>
+                            <option value="ko">الكورية (ko)</option>
+                            <option value="ja">اليابانية (ja)</option>
+                            <option value="bg">البلغارية (bg)</option>
+                            <option value="cs">التشيكية (cs)</option>
+                            <option value="da">الدنماركية (da)</option>
+                            <option value="de">الألمانية (de)</option>
+                            <option value="el">اليونانية (el)</option>
+                            <option value="es">الإسبانية (es)</option>
+                            <option value="et">الإستونية (et)</option>
+                            <option value="fi">الفنلندية (fi)</option>
+                            <option value="fr">الفرنسية (fr)</option>
+                            <option value="hi">الهندية (hi)</option>
+                            <option value="hr">الكرواتية (hr)</option>
+                            <option value="hu">المجرية (hu)</option>
+                            <option value="id">الإندونيسية (id)</option>
+                            <option value="it">الإيطالية (it)</option>
+                            <option value="lt">الليتوانية (lt)</option>
+                            <option value="lv">اللاتفية (lv)</option>
+                            <option value="nl">الهولندية (nl)</option>
+                            <option value="pl">البولندية (pl)</option>
+                            <option value="pt">البرتغالية (pt)</option>
+                            <option value="ro">الرومانية (ro)</option>
+                            <option value="ru">الروسية (ru)</option>
+                            <option value="sk">السلوفاكية (sk)</option>
+                            <option value="sl">السلوفينية (sl)</option>
+                            <option value="sv">السويدية (sv)</option>
+                            <option value="tr">التركية (tr)</option>
+                            <option value="uk">الأوكرانية (uk)</option>
+                            <option value="vi">الفيتنامية (vi)</option>
+                            <option value="na">تلقائي / غير محدد (na)</option>
+                        </select>
+                    </div>
+
+                    <div class="section">
+                        <label for="text">النص المراد تحويله إلى صوت:</label>
+                        <textarea id="text"
+                            placeholder="اكتب أو الصق هنا النص الذي تريد تحويله إلى كلام…"
+                            dir="rtl">في صباح هذا اليوم، تمشّيت في الحديقة، وكان صوت العصافير والنسيم لطيفاً جداً، فتوقفت طويلاً لأستمع.</textarea>
+                    </div>
+
+                    <div class="params-grid">
+                        <div class="section">
+                            <label for="totalStep">عدد الخطوات (أكبر = جودة
+                                أعلى):</label>
+                            <input type="number" id="totalStep" value="8"
+                                min="1" max="50" inputmode="numeric">
+                        </div>
+
+                        <div class="section">
+                            <label for="speed">السرعة (المُوصى به ٠٫٩ — ١٫٥):</label>
+                            <input type="number" id="speed" value="1.05"
+                                min="0.5" max="2.0" step="0.05"
+                                inputmode="decimal">
+                        </div>
+                    </div>
+
+                    <button id="generateBtn">🔊 توليد الصوت</button>
+
+                    <div id="error" class="error"></div>
+                </div>
+
+                <div class="right-panel">
+                    <div id="results" class="results">
+                        <div class="results-placeholder">
+                            <div class="results-placeholder-icon">🎤</div>
+                            <p>سيظهر الصوت المُولَّد هنا</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="app-footer">
+                <span>مدعوم بـ Supertonic 3 · يعمل محلياً داخل متصفحك</span>
+            </footer>
+        </div>
+
+        <script type="module" src="/main.js"></script>
+    </body>
+</html>
